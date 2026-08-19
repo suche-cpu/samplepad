@@ -1,0 +1,492 @@
+<!DOCTYPE html>
+<html lang="si">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sample Player Pad (Auto Save)</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: #121212;
+      color: #ffffff;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      background-color: #1e1e1e;
+      padding: 25px;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 15px;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+
+    .right-controls {
+      display: flex;
+      gap: 12px;
+    }
+
+    .edit-mode-container {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background-color: #2a2a2a;
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid #444;
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 46px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #555;
+      transition: .3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: .3s;
+      border-radius: 50%;
+    }
+
+    input:checked + .slider {
+      background-color: #ff9800;
+    }
+
+    input:checked + .slider:before {
+      transform: translateX(22px);
+    }
+
+    .mode-label {
+      font-size: 0.9rem;
+      font-weight: bold;
+      color: #ccc;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      font-size: 0.95rem;
+      font-weight: bold;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      color: #fff;
+    }
+
+    .btn-stop {
+      background-color: #e53935;
+    }
+
+    .btn-stop:hover {
+      background-color: #c62828;
+    }
+
+    .btn-fullscreen {
+      background-color: #29b6f6;
+    }
+
+    .btn-fullscreen:hover {
+      background-color: #0288d1;
+    }
+
+    .btn:active {
+      transform: scale(0.96);
+    }
+
+    .pad-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+    }
+
+    @media (max-width: 768px) {
+      .pad-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    @media (max-width: 480px) {
+      .pad-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    .pad-wrapper {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .pad {
+      background: linear-gradient(145deg, #2c2c2c, #222222);
+      border: 2px solid #333;
+      border-radius: 12px;
+      aspect-ratio: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #bbb;
+      cursor: pointer;
+      user-select: none;
+      box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
+      transition: all 0.1s ease;
+      text-align: center;
+      padding: 10px;
+    }
+
+    .pad:hover {
+      border-color: #00e676;
+      color: #fff;
+    }
+
+    .pad.active {
+      background: linear-gradient(145deg, #00e676, #00b0ff);
+      color: #000;
+      box-shadow: 0 0 20px rgba(0, 230, 118, 0.6);
+      transform: scale(0.98);
+    }
+
+    .sound-name {
+      font-size: 0.75rem;
+      color: #ffb74d;
+      margin-top: 5px;
+      word-break: break-all;
+      max-width: 90%;
+      display: none;
+    }
+
+    .file-btn {
+      background-color: #333;
+      color: #aaa;
+      border: 1px dashed #ff9800;
+      padding: 6px;
+      font-size: 0.75rem;
+      border-radius: 6px;
+      cursor: pointer;
+      text-align: center;
+      transition: all 0.2s;
+      display: none;
+    }
+
+    .file-btn:hover {
+      background-color: #444;
+      color: #fff;
+    }
+
+    input[type="file"] {
+      display: none;
+    }
+
+    body.edit-mode-active .sound-name,
+    body.edit-mode-active .file-btn {
+      display: block;
+    }
+
+    body.edit-mode-active .pad {
+      border-color: #ff9800;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container" id="appContainer">
+    <div class="controls">
+      <div class="edit-mode-container">
+        <label class="switch">
+          <input type="checkbox" id="editModeToggle">
+          <span class="slider"></span>
+        </label>
+        <span class="mode-label" id="modeStatus">Play Mode</span>
+      </div>
+
+      <div class="right-controls">
+        <button class="btn btn-stop" id="stopBtn">STOP (Fade Out)</button>
+        <button class="btn btn-fullscreen" id="fullscreenBtn">Full Screen</button>
+      </div>
+    </div>
+
+    <div class="pad-grid" id="padGrid"></div>
+  </div>
+
+  <script>
+    let audioCtx = null;
+
+    function getAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+      return audioCtx;
+    }
+
+    const padBuffers = {}; 
+    let currentSource = null;
+    let currentGainNode = null;
+    let activePad = null;
+    let isEditMode = false;
+
+    const padGrid = document.getElementById('padGrid');
+    const editModeToggle = document.getElementById('editModeToggle');
+    const modeStatus = document.getElementById('modeStatus');
+
+    // --- IndexedDB Configuration (Audio Storage) ---
+    const dbName = "PadPlayerDB";
+    const storeName = "SoundsStore";
+    let db = null;
+
+    const dbRequest = indexedDB.open(dbName, 1);
+    dbRequest.onupgradeneeded = (e) => {
+      db = e.target.result;
+      if (!db.objectStoreNames.contains(storeName)) {
+        db.createObjectStore(storeName);
+      }
+    };
+
+    dbRequest.onsuccess = (e) => {
+      db = e.target.result;
+      // Database ලෑස්ති වුණු ගමන් කලින් Save කරපු Sounds load කරගන්නවා
+      loadSavedSounds();
+    };
+
+    function saveSoundToDB(padIndex, fileData, fileName) {
+      if (!db) return;
+      const tx = db.transaction(storeName, "readwrite");
+      const store = tx.objectStore(storeName);
+      store.put({ data: fileData, name: fileName }, padIndex);
+    }
+
+    function loadSavedSounds() {
+      if (!db) return;
+      const tx = db.transaction(storeName, "readonly");
+      const store = tx.objectStore(storeName);
+
+      for (let i = 1; i <= 12; i++) {
+        const request = store.get(i);
+        request.onsuccess = (e) => {
+          const result = e.target.result;
+          if (result) {
+            const ctx = getAudioContext();
+            ctx.decodeAudioData(result.data.slice(0), (decodedData) => {
+              padBuffers[i] = decodedData;
+              document.getElementById(`name-${i}`).innerText = "Saved: " + result.name;
+            });
+          }
+        };
+      }
+    }
+    // ----------------------------------------------
+
+    function createDemoBuffer(ctx, freq) {
+      const sampleRate = ctx.sampleRate;
+      const buffer = ctx.createBuffer(1, sampleRate * 1.5, sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < buffer.length; i++) {
+        data[i] = Math.sin(2 * Math.PI * freq * (i / sampleRate)) * Math.exp(-i / (sampleRate * 0.4));
+      }
+      return buffer;
+    }
+
+    // Pads 12 එකතු කිරීම
+    for (let i = 1; i <= 12; i++) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pad-wrapper';
+
+      const pad = document.createElement('div');
+      pad.className = 'pad';
+      pad.id = `pad-${i}`;
+      pad.innerHTML = `<div>Patch ${i}</div><div class="sound-name" id="name-${i}">Default Sound</div>`;
+
+      const fileInput = document.createElement('input');
+      fileInput.type = 'file';
+      fileInput.accept = 'audio/*';
+      fileInput.id = `file-${i}`;
+
+      const fileBtn = document.createElement('label');
+      fileBtn.className = 'file-btn';
+      fileBtn.htmlFor = `file-${i}`;
+      fileBtn.innerText = '✏️ Sound එකක් තෝරන්න';
+
+      wrapper.appendChild(pad);
+      wrapper.appendChild(fileBtn);
+      wrapper.appendChild(fileInput);
+      padGrid.appendChild(wrapper);
+
+      pad.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        playSound(i, pad);
+      });
+
+      fileInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          loadUserAudio(i, file);
+        }
+      });
+    }
+
+    editModeToggle.addEventListener('change', (e) => {
+      isEditMode = e.target.checked;
+      if (isEditMode) {
+        document.body.classList.add('edit-mode-active');
+        modeStatus.innerText = 'Edit Mode ON';
+        modeStatus.style.color = '#ff9800';
+      } else {
+        document.body.classList.remove('edit-mode-active');
+        modeStatus.innerText = 'Play Mode';
+        modeStatus.style.color = '#ccc';
+      }
+    });
+
+    function loadUserAudio(padIndex, file) {
+      const ctx = getAudioContext();
+      const reader = new FileReader();
+
+      reader.onload = function(e) {
+        const arrayBuffer = e.target.result;
+
+        // Audio Decode කිරීම
+        ctx.decodeAudioData(
+          arrayBuffer.slice(0),
+          function(decodedData) {
+            padBuffers[padIndex] = decodedData;
+            document.getElementById(`name-${padIndex}`).innerText = file.name;
+            
+            // Auto Save to IndexedDB Storage
+            saveSoundToDB(padIndex, arrayBuffer, file.name);
+          },
+          function(error) {
+            alert("මෙම Audio File එක Decode කිරීමට නොහැක. වෙනත් Standard MP3/WAV File එකක් තෝරන්න.");
+          }
+        );
+      };
+
+      reader.readAsArrayBuffer(file);
+    }
+
+    function playSound(padIndex, padElement) {
+      const ctx = getAudioContext();
+
+      if (currentSource) {
+        try {
+          currentSource.stop();
+          currentSource.disconnect();
+        } catch (e) {}
+        currentSource = null;
+      }
+
+      const buffer = padBuffers[padIndex] || createDemoBuffer(ctx, 200 + padIndex * 40);
+
+      const source = ctx.createBufferSource();
+      const gainNode = ctx.createGain();
+
+      source.buffer = buffer;
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+
+      source.start(0);
+
+      currentSource = source;
+      currentGainNode = gainNode;
+
+      if (activePad) activePad.classList.remove('active');
+      padElement.classList.add('active');
+      activePad = padElement;
+
+      source.onended = () => {
+        if (activePad === padElement && currentSource === source) {
+          padElement.classList.remove('active');
+        }
+      };
+    }
+
+    function stopCurrentSound(fadeTime = 0.4) {
+      if (currentGainNode && audioCtx) {
+        const now = audioCtx.currentTime;
+        currentGainNode.gain.setValueAtTime(currentGainNode.gain.value, now);
+        currentGainNode.gain.exponentialRampToValueAtTime(0.0001, now + fadeTime);
+        
+        const sourceToStop = currentSource;
+        setTimeout(() => {
+          if (sourceToStop) {
+            try { 
+              sourceToStop.stop();
+              sourceToStop.disconnect();
+            } catch (e) {}
+          }
+        }, fadeTime * 1000);
+      }
+
+      if (activePad) {
+        activePad.classList.remove('active');
+        activePad = null;
+      }
+      currentSource = null;
+      currentGainNode = null;
+    }
+
+    document.getElementById('stopBtn').addEventListener('click', () => {
+      stopCurrentSound(0.4);
+    });
+
+    document.getElementById('fullscreenBtn').addEventListener('click', () => {
+      const container = document.documentElement;
+      if (!document.fullscreenElement) {
+        container.requestFullscreen().catch(err => {
+          console.log(`Error full screen: ${err.message}`);
+        });
+      } else {
+        document.exitFullscreen();
+      }
+    });
+  </script>
+</body>
+</html>
