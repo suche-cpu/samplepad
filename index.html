@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Sample Player Pad (Auto Save)</title>
+  <title>Sample Player Pad (Mobile Chrome Fixed)</title>
   <style>
     * {
       box-sizing: border-box;
@@ -175,6 +175,7 @@
       color: #bbb;
       cursor: pointer;
       user-select: none;
+      -webkit-user-select: none;
       box-shadow: 4px 4px 10px rgba(0, 0, 0, 0.4);
       transition: all 0.1s ease;
       text-align: center;
@@ -258,15 +259,19 @@
   <script>
     let audioCtx = null;
 
-    function getAudioContext() {
+    // Mobile/Tablet Chrome සඳහා AudioContext එක Resume කරගැනීමේ විශේෂිත ශ්‍රිතය
+    function initAudio() {
       if (!audioCtx) {
         audioCtx = new (window.AudioContext || window.webkitAudioContext)();
       }
       if (audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
-      return audioCtx;
     }
+
+    // Tablet screen එක කොහේ හරි Touch කරපු ගමන් Audio Context එක සදාකාලිකව Unlock වෙනවා
+    window.addEventListener('touchstart', initAudio, { once: true });
+    window.addEventListener('click', initAudio, { once: true });
 
     const padBuffers = {}; 
     let currentSource = null;
@@ -278,7 +283,7 @@
     const editModeToggle = document.getElementById('editModeToggle');
     const modeStatus = document.getElementById('modeStatus');
 
-    // --- IndexedDB Configuration (Audio Storage) ---
+    // --- IndexedDB Audio Storage ---
     const dbName = "PadPlayerDB";
     const storeName = "SoundsStore";
     let db = null;
@@ -293,7 +298,6 @@
 
     dbRequest.onsuccess = (e) => {
       db = e.target.result;
-      // Database ලෑස්ති වුණු ගමන් කලින් Save කරපු Sounds load කරගන්නවා
       loadSavedSounds();
     };
 
@@ -314,16 +318,17 @@
         request.onsuccess = (e) => {
           const result = e.target.result;
           if (result) {
-            const ctx = getAudioContext();
-            ctx.decodeAudioData(result.data.slice(0), (decodedData) => {
+            initAudio();
+            // Store කර ඇති ArrayBuffer එක Copy කර Decode කරගැනීම
+            const bufferCopy = result.data.slice(0);
+            audioCtx.decodeAudioData(bufferCopy, (decodedData) => {
               padBuffers[i] = decodedData;
               document.getElementById(`name-${i}`).innerText = "Saved: " + result.name;
-            });
+            }, (err) => console.log(err));
           }
         };
       }
     }
-    // ----------------------------------------------
 
     function createDemoBuffer(ctx, freq) {
       const sampleRate = ctx.sampleRate;
@@ -335,7 +340,6 @@
       return buffer;
     }
 
-    // Pads 12 එකතු කිරීම
     for (let i = 1; i <= 12; i++) {
       const wrapper = document.createElement('div');
       wrapper.className = 'pad-wrapper';
@@ -360,7 +364,13 @@
       wrapper.appendChild(fileInput);
       padGrid.appendChild(wrapper);
 
-      pad.addEventListener('pointerdown', (e) => {
+      // Touch events mobile devices වල zero delay ලබාදෙයි
+      pad.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        playSound(i, pad);
+      });
+
+      pad.addEventListener('mousedown', (e) => {
         e.preventDefault();
         playSound(i, pad);
       });
@@ -387,24 +397,22 @@
     });
 
     function loadUserAudio(padIndex, file) {
-      const ctx = getAudioContext();
+      initAudio();
       const reader = new FileReader();
 
       reader.onload = function(e) {
         const arrayBuffer = e.target.result;
+        const bufferForDecode = arrayBuffer.slice(0);
 
-        // Audio Decode කිරීම
-        ctx.decodeAudioData(
-          arrayBuffer.slice(0),
+        audioCtx.decodeAudioData(
+          bufferForDecode,
           function(decodedData) {
             padBuffers[padIndex] = decodedData;
             document.getElementById(`name-${padIndex}`).innerText = file.name;
-            
-            // Auto Save to IndexedDB Storage
             saveSoundToDB(padIndex, arrayBuffer, file.name);
           },
           function(error) {
-            alert("මෙම Audio File එක Decode කිරීමට නොහැක. වෙනත් Standard MP3/WAV File එකක් තෝරන්න.");
+            alert("මෙම Audio File එක Decode කිරීමට නොහැක. MP3/WAV File එකක් තෝරන්න.");
           }
         );
       };
@@ -413,7 +421,7 @@
     }
 
     function playSound(padIndex, padElement) {
-      const ctx = getAudioContext();
+      initAudio();
 
       if (currentSource) {
         try {
@@ -423,14 +431,14 @@
         currentSource = null;
       }
 
-      const buffer = padBuffers[padIndex] || createDemoBuffer(ctx, 200 + padIndex * 40);
+      const buffer = padBuffers[padIndex] || createDemoBuffer(audioCtx, 200 + padIndex * 40);
 
-      const source = ctx.createBufferSource();
-      const gainNode = ctx.createGain();
+      const source = audioCtx.createBufferSource();
+      const gainNode = audioCtx.createGain();
 
       source.buffer = buffer;
       source.connect(gainNode);
-      gainNode.connect(ctx.destination);
+      gainNode.connect(audioCtx.destination);
 
       source.start(0);
 
